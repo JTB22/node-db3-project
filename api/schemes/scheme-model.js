@@ -1,4 +1,7 @@
-function find() { // EXERCISE A
+const db = require("../../data/db-config.js");
+
+function find() {
+  // EXERCISE A
   /*
     1A- Study the SQL query below running it in SQLite Studio against `data/schemes.db3`.
     What happens if we change from a LEFT join to an INNER join?
@@ -15,9 +18,16 @@ function find() { // EXERCISE A
     2A- When you have a grasp on the query go ahead and build it in Knex.
     Return from this function the resulting dataset.
   */
+  return db("schemes as sc")
+    .leftJoin("steps as st", "sc.scheme_id", "st.scheme_id")
+    .select("sc.*")
+    .count("st.step_id as number_of_steps")
+    .groupBy("sc.scheme_id")
+    .orderBy("sc.scheme_id", "asc");
 }
 
-function findById(scheme_id) { // EXERCISE B
+async function findById(scheme_id) {
+  // EXERCISE B
   /*
     1B- Study the SQL query below running it in SQLite Studio against `data/schemes.db3`:
 
@@ -83,9 +93,34 @@ function findById(scheme_id) { // EXERCISE B
         "steps": []
       }
   */
+
+  const query = await db("schemes as sc")
+    .leftJoin("steps as st", "sc.scheme_id", "st.scheme_id")
+    .select("sc.scheme_name", "st.*")
+    .where("sc.scheme_id", scheme_id)
+    .orderBy("st.step_number", "asc");
+
+  let result = {
+    scheme_id: query[0].scheme_id,
+    scheme_name: query[0].scheme_name,
+    steps: [],
+  };
+
+  query.forEach((step) => {
+    if (step.step_id) {
+      result.steps.push({
+        step_id: step.step_id,
+        step_number: step.step_number,
+        instructions: step.instructions,
+      });
+    }
+  });
+
+  return result;
 }
 
-function findSteps(scheme_id) { // EXERCISE C
+function findSteps(scheme_id) {
+  // EXERCISE C
   /*
     1C- Build a query in Knex that returns the following data.
     The steps should be sorted by step_number, and the array
@@ -106,20 +141,39 @@ function findSteps(scheme_id) { // EXERCISE C
         }
       ]
   */
+  return db("schemes as sc")
+    .leftJoin("steps as st", "sc.scheme_id", "st.scheme_id")
+    .select("st.step_id", "st.step_number", "st.instructions", "sc.scheme_name")
+    .where("sc.scheme_id", scheme_id)
+    .orderBy("st.step_number", "asc")
+    .then((steps) => {
+      return steps.filter((step) => step.step_id !== null);
+    });
 }
 
-function add(scheme) { // EXERCISE D
+async function add(scheme) {
+  // EXERCISE D
   /*
     1D- This function creates a new scheme and resolves to _the newly created scheme_.
   */
+  const newScheme = await db("schemes").insert(scheme);
+  const newSchemeId = newScheme[0];
+  return db("schemes").where("scheme_id", newSchemeId).first();
 }
 
-function addStep(scheme_id, step) { // EXERCISE E
+function addStep(scheme_id, step) {
+  // EXERCISE E
   /*
     1E- This function adds a step to the scheme with the given `scheme_id`
     and resolves to _all the steps_ belonging to the given `scheme_id`,
     including the newly created one.
   */
+  // console.log(scheme_id, step);
+  return db("steps")
+    .insert({ ...step, scheme_id })
+    .then(() => {
+      return db("steps").where("scheme_id", scheme_id).orderBy("step_number");
+    });
 }
 
 module.exports = {
@@ -128,4 +182,4 @@ module.exports = {
   findSteps,
   add,
   addStep,
-}
+};
